@@ -685,27 +685,29 @@
                 const clickY = (e.clientY - rect.top) * scaleY;
                 
                 if (selectedItem === 'autohammer' && autoHammerCount > 0) {
-                    if (isValidTurretPosition(clickX, clickY)) {
+                    if (isValidTurretPosition(clickX, clickY, 'autohammer')) {
                         autoHammers.push({
                             x: clickX,
                             y: clickY,
                             lastFired: 0,
-                            bullets: []
+                            bullets: [],
+                            health: 20
                         });
                         autoHammerCount--;
                         document.getElementById('autohammerCount').textContent = autoHammerCount;
                     }
                 } else if (selectedItem === 'turret' && turretCount > 0) {
-                    if (isValidTurretPosition(clickX, clickY)) {
-                    turrets.push({
-                        x: clickX,
-                        y: clickY,
-                        rotation: 0,
-                        lastFired: 0,
-                        bullets: []
-                    });
-                    turretCount--;
-                    document.getElementById('turretCount').textContent = turretCount;
+                    if (isValidTurretPosition(clickX, clickY, 'turret')) {
+                        turrets.push({
+                            x: clickX,
+                            y: clickY,
+                            rotation: 0,
+                            lastFired: 0,
+                            bullets: [],
+                            health: 30
+                        });
+                        turretCount--;
+                        document.getElementById('turretCount').textContent = turretCount;
                     }
                 } else if (selectedItem === 'barricade' && barricadeCount > 0) {
                     barricades.push({
@@ -1094,7 +1096,7 @@
             ctx.restore();
         }
         
-        function drawAutoHammer(x, y, rotation = 0) {
+        function drawAutoHammer(x, y, rotation = 0, healthPercent = 1) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(rotation);
@@ -1120,9 +1122,19 @@
             ctx.shadowBlur = 0;
             
             ctx.restore();
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, 25, 0, Math.PI * 2);
+            ctx.fillStyle = shadeColor('#2196F3', -30);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, 25, 0, Math.PI * 2 * healthPercent);
+            ctx.fillStyle = shadeColor('#2196F3', -30);
+            ctx.fill();
         }
         
-        function drawTurret(x, y, rotation = 0) {
+        function drawTurret(x, y, rotation = 0, healthPercent = 1) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(rotation);
@@ -1130,6 +1142,11 @@
             ctx.drawImage(turretImg, -25, -25, 50, 50);
             
             ctx.restore();
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, 25, 0, Math.PI * 2 * healthPercent);
+            ctx.fillStyle = shadeColor('#2196F3', -30);
+            ctx.fill();
         }
         
         function gameLoop() {
@@ -1269,6 +1286,7 @@
                 ctx.shadowBlur = 0;
             }
             
+            autoHammers = autoHammers.filter(autoHammer => autoHammer.health > 0);
             autoHammers.forEach(autoHammer => {
                 const target = findTargetForTurret(autoHammer, watermelons);
                 let rotation = 0;
@@ -1281,6 +1299,8 @@
                     const now = Date.now();
                     if (now - autoHammer.lastFired > 2000) {
                         autoHammer.lastFired = now;
+                        
+                        autoHammer.health -= 1;
                         
                         target.health -= 2;
                         if (target.health <= 0) {
@@ -1306,9 +1326,10 @@
                     }
                 }
                 
-                drawAutoHammer(autoHammer.x, autoHammer.y, rotation);
+                drawAutoHammer(autoHammer.x, autoHammer.y, rotation, autoHammer.health / 20);
             });
             
+            turrets = turrets.filter(turret => turret.health > 0);
             turrets.forEach(turret => {
                 const target = findTargetForTurret(turret, watermelons);
                 
@@ -1320,6 +1341,8 @@
                     const now = Date.now();
                     if (now - turret.lastFired > 1000) {
                         turret.lastFired = now;
+                        
+                        turret.health -= 1;
                         
                         const bulletSpeed = 7;
                         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1340,7 +1363,7 @@
                     }
                 }
                 
-                drawTurret(turret.x, turret.y, turret.rotation);
+                drawTurret(turret.x, turret.y, turret.rotation, turret.health / 30);
                 
                 for (let i = turret.bullets.length - 1; i >= 0; i--) {
                     const bullet = turret.bullets[i];
@@ -1628,11 +1651,21 @@
             return false;
         }
         
-        function isValidTurretPosition(x, y) {
-            if (x < 50 || x > canvas.width - 50 || y < 50 || y > canvas.height - 50) {
+        function isValidTurretPosition(x, y, type = 'turret') {
+            // Barricades can be placed anywhere
+            if (type === 'barricade') {
+                if (x < 50 || x > canvas.width - 50 || y < 50 || y > canvas.height - 50) {
+                    return false;
+                }
+                return true;
+            }
+            
+            // Turrets and autoHammers can only be placed behind the red line
+            if (x < LINE_X || x > canvas.width - 50 || y < 50 || y > canvas.height - 50) {
                 return false;
             }
             
+            // Check if position is too close to other turrets
             for (const turret of turrets) {
                 const dx = x - turret.x;
                 const dy = y - turret.y;
@@ -1642,6 +1675,17 @@
                 }
             }
             
+            // Check if position is too close to autoHammers
+            for (const hammer of autoHammers) {
+                const dx = x - hammer.x;
+                const dy = y - hammer.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 100) {
+                    return false;
+                }
+            }
+            
+            // Check if position is too close to barricades
             for (const barricade of barricades) {
                 const dx = x - barricade.x;
                 const dy = y - barricade.y;
