@@ -1287,8 +1287,19 @@
                             const index = watermelons.indexOf(target);
                             if (index > -1) {
                                 watermelons.splice(index, 1);
-                                money += target.type.money;
-                                score += target.type.points;
+                                money += target.type.money * moneyMultiplier;
+                                score += target.type.points * scoreMultiplier;
+                                
+                                lastKillTime = Date.now();
+                                combo++;
+                                if (combo > 2) {
+                                    comboMultiplier = 1 + (combo * 0.1);
+                                }
+                                
+                                addExperience(target.type.points / 5);
+                                
+                                createExplosion(target.x, target.y, target.type.color, target.size * 2);
+                                
                                 updateUI();
                             }
                         }
@@ -1363,8 +1374,17 @@
                                     
                                     chainReactionEffect(watermelon.x, watermelon.y);
                                     
-                                    money += reward;
-                                    score += points;
+                                    money += reward * moneyMultiplier;
+                                    score += points * scoreMultiplier;
+                                    
+                                    lastKillTime = Date.now();
+                                    combo++;
+                                    if (combo > 2) {
+                                        comboMultiplier = 1 + (combo * 0.1);
+                                    }
+                                    
+                                    addExperience(points / 5);
+                                    
                                     updateUI();
                                 }
                                 break;
